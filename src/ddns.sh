@@ -83,18 +83,20 @@ host="dev"
 dingdingAccessToken="xxxx"
 dingdingMessageKey="小艺通知"
 
+logPath="$HOME/dev/namesilo-ddns/log"
+
 # 上一次脚本执行时候的 ip 地址 [用来和当前地址比较，两次结果不一致会更新 DNS IP、并推送钉钉]
-mkdir -p "../log"
-read -r ipOld <"../log/ip_old.txt"
+mkdir -p "logPath"
+read -r ipOld <"${logPath}/ip_old.txt"
 # 获取 wan 口的公网 ip 地址
 ipNew=$(get_public_ip)
-echo "[$(/bin/date)] 执行ip更新 [${ipOld}] -> [${ipNew}]" >>"../log/log.txt"
+echo "[$(/bin/date)] 执行ip更新 [${ipOld}] -> [${ipNew}]" >>"${logPath}/log.txt"
 if [ "${ipNew}" != "${ipOld}" ]; then
     # 更新 dns
     put_dns_record "$apiKey" "$domain" "$host" "$ipNew"
     pushDingTalk "$dingdingAccessToken" "$dingdingMessageKey" "[${host}.${domain}]ip更新: [${ipOld}] -> [${ipNew}]"
     # 记录新的 ip 地址
-    echo "${ipNew}" >"../log/ip_old.txt"
+    echo "${ipNew}" >"${logPath}/ip_old.txt"
     # 记录每次dns更新
-    echo "[$(/bin/date)] ip更新 [${ipOld}] -> [${ipNew}]" >>"../log/dns.txt"
+    echo "[$(/bin/date)] ip更新 [${ipOld}] -> [${ipNew}]" >>"${logPath}/dns.txt"
 fi
