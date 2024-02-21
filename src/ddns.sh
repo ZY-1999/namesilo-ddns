@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ############### FUNCTIONS #############
 
@@ -19,7 +19,7 @@ pushDingTalk() {
     messageKey=$2
     content=$3
     webhook="https://oapi.dingtalk.com/robot/send?access_token=${accessToken}"
-    dateStr=$(date +%Y-%m-%d\ %H:%M:%S\ %z)
+    dateStr=$(date "+%Y-%m-%d %H:%M:%S")
     data="{
           \"msgtype\": \"text\",
           \"at\": {
@@ -45,10 +45,11 @@ get_ip_record_id() {
     host=$3
     type=${4:-"A"}
     result=$(curl --noproxy "*" -s "https://www.namesilo.com/api/dnsListRecords?version=1&type=xml&key=${apiKey}&domain=${domain}")
-    # 返回结果为xml 较简单直接使用了正则匹配
-    ids=($(grep -oP '<record_id>\K.*?(?=</record_id>)' <<< ${result}))
-    hosts=($(grep -oP '<host>\K.*?(?=</host>)' <<< ${result}))
-    types=($(grep -oP '<type>\K.*?(?=</type>)' <<< ${result}))
+    # 返回结果为xml 较简单直接使用了正则匹配   
+    mapfile ids <<< "$(grep -oP '<record_id>\K.*?(?=</record_id>)' <<< "$result")"
+    mapfile hosts <<< "$(grep -oP '<host>\K.*?(?=</host>)' <<< "$result")"
+    mapfile types <<< "$(grep -oP '<type>\K.*?(?=</type>)' <<< "$result")"
+    
     # 遍历通过host和type匹配 
     for index in "${!ids[@]}"; do
         _id=${ids[$index]}
@@ -83,7 +84,7 @@ host="dev"
 dingdingAccessToken="xxxx"
 dingdingMessageKey="小艺通知"
 
-logPath="$HOME/dev/namesilo-ddns/log"
+logPath="/home/z/dev/namesilo-ddns/log"
 
 # 上一次脚本执行时候的 ip 地址 [用来和当前地址比较，两次结果不一致会更新 DNS IP、并推送钉钉]
 mkdir -p "logPath"
