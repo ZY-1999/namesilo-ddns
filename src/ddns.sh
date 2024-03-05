@@ -39,7 +39,7 @@ pushDingTalk() {
 }
 
 # 获取记录id type默认="A"
-get_ip_record_id() {
+getIpRecordId() {
     apiKey=$1
     domain=$2
     host=$3
@@ -65,39 +65,86 @@ get_ip_record_id() {
 
 
 # 更新 dns 信息
-put_dns_record() {
+putDnsRecord() {
     apiKey=$1
     domain=$2
     newHost=$3
     newIp=$4
-    type=$5
-    recordId=$(get_ip_record_id "$apiKey" "$domain" "$newHost" "$type")
+    type=${5:-"A"}
+    recordId=$(getIpRecordId "$apiKey" "$domain" "$newHost" "$type")
     curl --noproxy "*" "https://www.namesilo.com/api/dnsUpdateRecord?version=1&type=xml&key=${apiKey}&domain=${domain}&rrid=${recordId}&rrhost=${newHost}&rrvalue=${newIp}" 
+}
+
+
+# 查询 dns 信息
+getCloudflareRecords() {
+    zoneId=$1
+    apiToken=$2
+    domain=$3
+    newHost=$4
+    type=$5
+    result=$(curl --noproxy "*" \
+        --url "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?name=$newHost.$domain&type=$type" \
+        --header "Content-Type: application/json" \
+        --header "Authorization: Bearer $apiToken")
+    recordId=$(echo "$result" | grep -o '"id":"[^"]*"' | cut -d '"' -f 4)
+    echo "$recordId"
+}
+
+
+putDnsRecordToCloudflare() {
+    zoneId=$1
+    apiToken=$2
+    domain=$3
+    newHost=$4
+    newIp=$5
+    type=${6:-"A"}
+    recordId=$(getCloudflareRecords "$zoneId" "$apiToken" "$domain" "$newHost" "$type")
+    curl --insecure \
+        --noproxy "*" \
+        --request PUT \
+        --url "https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}" \
+        --header "Content-Type: application/json" \
+        --header "Authorization: Bearer $apiToken" \
+        --data "{
+                    \"content\": \"$newIp\",
+                    \"name\": \"$newHost.$domain\",
+                    \"proxied\": false,
+                    \"type\": \"$type\",
+                    \"comment\": \"Domain verification record\",
+                    \"ttl\": 3600
+                }"
 }
 
 ############### FUNCTIONS ###############
 
 # 配置
-apiKey="xxxx"
+# namesilo 配置
+# apiKey="XXXX"
+# cloudflare 配置
+zoneId="XXXX"
+apiToken="XXXX"
 domain="330000.top"
 host="dev"
-dingdingAccessToken="xxxx"
+dingdingAccessToken="XXXX"
 dingdingMessageKey="小艺通知"
 
 logPath="/home/z/dev/namesilo-ddns/log"
 
 # 上一次脚本执行时候的 ip 地址 [用来和当前地址比较，两次结果不一致会更新 DNS IP、并推送钉钉]
-mkdir -p "logPath"
+mkdir -p "$logPath"
 read -r ipOld <"${logPath}/ip_old.txt"
 # 获取 wan 口的公网 ip 地址
 ipNew=$(get_public_ip)
 echo "[$(/bin/date)] 执行ip更新 [${ipOld}] -> [${ipNew}]" >>"${logPath}/log.txt"
 if [ "${ipNew}" != "${ipOld}" ]; then
     # 更新 dns
-    put_dns_record "$apiKey" "$domain" "$host" "$ipNew"
+    # putDnsRecord "$apiKey" "$domain" "$host" "$ipNew"
+
+    putDnsRecordToCloudflare "$zoneId" "$apiToken" "$domain" "$host" "$ipNew"
     pushDingTalk "$dingdingAccessToken" "$dingdingMessageKey" "[${host}.${domain}]ip更新: [${ipOld}] -> [${ipNew}]"
     # 记录新的 ip 地址
     echo "${ipNew}" >"${logPath}/ip_old.txt"
     # 记录每次dns更新
-    echo "[$(/bin/date)] ip更新 [${ipOld}] -> [${ipNew}]" >>"${logPath}/dns.txt"
+    echo "[$(/bin/date)] ip更新 [${ipOld}] -> [${ipNew}]" >> "${logPath}/dns.txt"
 fi
