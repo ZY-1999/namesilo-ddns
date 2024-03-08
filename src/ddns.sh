@@ -112,8 +112,14 @@ putDnsRecordToCloudflare() {
                     \"proxied\": false,
                     \"type\": \"$type\",
                     \"comment\": \"Domain verification record\",
-                    \"ttl\": 3600
+                    \"ttl\": 360
                 }"
+}
+
+getIpFromPing() {
+    host="$1"
+    pingResult=$(ping -c 1 "$host" | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -n 1)
+    echo "$pingResult"
 }
 
 ############### FUNCTIONS ###############
@@ -129,11 +135,12 @@ host="dev"
 dingdingAccessToken="XXXX"
 dingdingMessageKey="小艺通知"
 
-logPath="/home/z/dev/namesilo-ddns/log"
+logPath="$HOME/dev/namesilo-ddns/log"
 
-# 上一次脚本执行时候的 ip 地址 [用来和当前地址比较，两次结果不一致会更新 DNS IP、并推送钉钉]
+# 获取ping host 的结果用来和当前地址比较，两次结果不一致会更新 DNS IP、并推送钉钉
 mkdir -p "$logPath"
-read -r ipOld <"${logPath}/ip_old.txt"
+
+ipOld=$(getIpFromPing "$host.$domain")
 # 获取 wan 口的公网 ip 地址
 ipNew=$(get_public_ip)
 echo "[$(/bin/date)] 执行ip更新 [${ipOld}] -> [${ipNew}]" >>"${logPath}/log.txt"
@@ -143,8 +150,6 @@ if [ "${ipNew}" != "${ipOld}" ]; then
 
     putDnsRecordToCloudflare "$zoneId" "$apiToken" "$domain" "$host" "$ipNew"
     pushDingTalk "$dingdingAccessToken" "$dingdingMessageKey" "[${host}.${domain}]ip更新: [${ipOld}] -> [${ipNew}]"
-    # 记录新的 ip 地址
-    echo "${ipNew}" >"${logPath}/ip_old.txt"
     # 记录每次dns更新
     echo "[$(/bin/date)] ip更新 [${ipOld}] -> [${ipNew}]" >> "${logPath}/dns.txt"
 fi
